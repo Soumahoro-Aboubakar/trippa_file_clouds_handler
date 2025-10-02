@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import config from '../config'; 
+import config from '../config/index.js'; 
 
 const { FILE_TTL_DAYS } = config;
 

@@ -5,7 +5,7 @@ import cors from 'cors';
 import { config as _config } from 'dotenv';
 import { isMaster, fork, on } from 'cluster';
 import { cpus } from 'os';
-import { MONGODB_URI } from './config';
+import { MONGODB_URI } from './config/index.js';
 
 _config();
 

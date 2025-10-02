@@ -1,6 +1,6 @@
 // backend/services/r2Service.js
 import { S3 } from 'aws-sdk';
-import config from '../config';
+import config from '../config/index.js';
 
 class R2Service {
   constructor() {

@@ -1,6 +1,6 @@
 // backend/services/b2Service.js
 import B2 from "backblaze-b2";
-import config from "../config";
+import config from "../config/index.js";
 
 class B2Service {
   constructor() {
