@@ -12,8 +12,8 @@ import {
   generatePresignedGetUrls as _generatePresignedGetUrls,
 } from "../services/r2Service.js";
 import config from "../config/index.js";
-import auth from "../middleware/auth.js";
 import FileMetadataModel from "../models/fileMetadata.js";
+import auth from "../middleware/auth.js";
 
 const router = Router();
 
