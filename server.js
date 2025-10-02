@@ -3,7 +3,7 @@ import express, { json, urlencoded } from 'express';
 import { connect } from 'mongoose';
 import cors from 'cors';
 import { config as _config } from 'dotenv';
-import { isMaster, fork, on } from 'cluster';
+import cluster from 'cluster';
 import { cpus } from 'os';
 import config from './config/index.js';
 import https from "https";
@@ -47,19 +47,18 @@ function autoPing() {
 }
 
 
-// Optimisation pour machines multi-cœurs
-if (isMaster && process.env.NODE_ENV === 'production') {
+if (cluster.isPrimary && process.env.NODE_ENV === 'production') {
   const numCPUs = Math.min(cpus().length, 4); // Max 4 workers
   
   console.log(`🚀 Démarrage de ${numCPUs} workers`);
   
   for (let i = 0; i < numCPUs; i++) {
-    fork();
+    cluster.fork();
   }
   
-  on('exit', (worker, code, signal) => {
+  cluster.on('exit', (worker, code, signal) => {
     console.log(`Worker ${worker.process.pid} terminé`);
-    fork();
+    cluster.fork();
   });
 } else {
   const PORT = process.env.PORT || 3000;
@@ -68,5 +67,4 @@ if (isMaster && process.env.NODE_ENV === 'production') {
     autoPing();
   });
 }
-
 export default app;
