@@ -5,7 +5,7 @@ import cors from 'cors';
 import { config as _config } from 'dotenv';
 import { isMaster, fork, on } from 'cluster';
 import { cpus } from 'os';
-import { MONGODB_URI } from './config/index.js';
+import config from './config/index.js';
 import https from "https";
 _config();
 
@@ -28,7 +28,7 @@ app.get('/health', (req, res) => {
 });
 
 // Connexion MongoDB
-connect(MONGODB_URI, {
+connect(config.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
