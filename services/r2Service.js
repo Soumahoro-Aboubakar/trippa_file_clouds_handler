@@ -145,4 +145,8 @@ class R2Service {
   }
 }
 
+export const generatePresignedPutUrls = (fileId, chunkCount) => new R2Service().generatePresignedPutUrls(fileId, chunkCount);
+export const generatePresignedGetUrls = (providerKey, chunkCount) => new R2Service().generatePresignedGetUrls(providerKey, chunkCount);
+export const completeMultipartUpload = (providerKey, uploadId, parts) => new R2Service().completeMultipartUpload(providerKey, uploadId, parts);
+
 export default new R2Service();

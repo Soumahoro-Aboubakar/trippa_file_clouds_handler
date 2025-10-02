@@ -146,4 +146,9 @@ class B2Service {
   }
 }
 
+
+export const generatePresignedPutUrls = (fileId, chunkCount) => new B2Service().generatePresignedPutUrls(fileId, chunkCount);
+export const generatePresignedGetUrls = (providerKey, chunkCount) => new B2Service().generatePresignedGetUrls(providerKey, chunkCount);
+export const completeMultipartUpload = (fileId, parts) => new B2Service().completeMultipartUpload(fileId, parts);
+
 export default new B2Service();
