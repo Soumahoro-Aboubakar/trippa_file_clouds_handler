@@ -1,10 +1,10 @@
 // backend/services/r2Service.js
-import { S3 } from 'aws-sdk';
+import AWS from 'aws-sdk'; // ← Changement ici
 import config from '../config/index.js';
 
 class R2Service {
   constructor() {
-    this.s3 = new S3({
+    this.s3 = new AWS.S3({
       endpoint: `https://${config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
       accessKeyId: config.R2_ACCESS_KEY_ID,
       secretAccessKey: config.R2_SECRET_ACCESS_KEY,
@@ -16,7 +16,6 @@ class R2Service {
   async generatePresignedPutUrls(fileId, chunkCount) {
     const urls = [];
     
-    // Initier multipart upload pour les gros fichiers
     if (chunkCount > 1) {
       const multipart = await this.s3.createMultipartUpload({
         Bucket: config.R2_BUCKET_NAME,
@@ -44,7 +43,6 @@ class R2Service {
         });
       }
     } else {
-      // Upload simple pour un seul chunk
       const url = this.s3.getSignedUrl('putObject', {
         Bucket: config.R2_BUCKET_NAME,
         Key: fileId,
@@ -111,7 +109,6 @@ class R2Service {
   }
 
   async copyFromUrl(sourceUrl, destKey, onProgress) {
-    // Pour la migration cloud-to-cloud via streaming
     const https = require('https');
     const stream = require('stream');
     
