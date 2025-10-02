@@ -248,3 +248,5 @@ router.get("/:id/download-urls", auth, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+
+export default router;
