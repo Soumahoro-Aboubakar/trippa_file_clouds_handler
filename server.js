@@ -17,11 +17,10 @@ app.use(json({ limit: '10mb' }));
 app.use(urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
-import filesRoutes from './routes/files';
-import adminRoutes from './routes/admin';
+import filesRoutes from './routes/files.js';
 
 app.use('/api/files', filesRoutes);
-app.use('/api/admin', adminRoutes);
+//app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
