@@ -1,88 +1,118 @@
-// backend/services/r2Service.js
-import AWS from 'aws-sdk'; // ← Changement ici
-import config from '../config/index.js';
+import {
+  S3Client,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand
+} from "@aws-sdk/client-s3";
+
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import config from "../config/index.js";
+import https from "https";
+import stream from "stream";
+
+// Initialisation du client R2 (AWS SDK v3)
+const s3 = new S3Client({
+  region: "auto",
+  endpoint: `https://${config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: config.R2_ACCESS_KEY_ID,
+    secretAccessKey: config.R2_SECRET_ACCESS_KEY,
+  },
+});
 
 class R2Service {
-  constructor() {
-    this.s3 = new AWS.S3({
-      endpoint: `https://${config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      accessKeyId: config.R2_ACCESS_KEY_ID,
-      secretAccessKey: config.R2_SECRET_ACCESS_KEY,
-      region: 'auto',
-      signatureVersion: 'v4',
-    });
-  }
-
+  /**
+   * Générer des URLs signées pour uploader des fichiers (PUT ou multipart)
+   */
   async generatePresignedPutUrls(fileId, chunkCount) {
     const urls = [];
-    
+
     if (chunkCount > 1) {
-      const multipart = await this.s3.createMultipartUpload({
+      // Démarrer un upload multipart
+      const multipart = await s3.send(new CreateMultipartUploadCommand({
         Bucket: config.R2_BUCKET_NAME,
         Key: fileId,
-        ContentType: 'application/octet-stream',
-      }).promise();
+        ContentType: "application/octet-stream",
+      }));
 
       const uploadId = multipart.UploadId;
-      
+
       for (let i = 0; i < chunkCount; i++) {
-        const url = this.s3.getSignedUrl('uploadPart', {
+        const command = new UploadPartCommand({
           Bucket: config.R2_BUCKET_NAME,
           Key: fileId,
           PartNumber: i + 1,
           UploadId: uploadId,
-          Expires: config.PRESIGNED_URL_EXPIRY,
         });
-        
+
+        const url = await getSignedUrl(s3, command, {
+          expiresIn: config.PRESIGNED_URL_EXPIRY,
+        });
+
         urls.push({
           chunkIndex: i,
-          url: url,
-          uploadId: uploadId,
+          url,
+          uploadId,
           partNumber: i + 1,
-          method: 'PUT'
+          method: "PUT",
         });
       }
     } else {
-      const url = this.s3.getSignedUrl('putObject', {
+      const command = new PutObjectCommand({
         Bucket: config.R2_BUCKET_NAME,
         Key: fileId,
-        Expires: config.PRESIGNED_URL_EXPIRY,
       });
-      
+
+      const url = await getSignedUrl(s3, command, {
+        expiresIn: config.PRESIGNED_URL_EXPIRY,
+      });
+
       urls.push({
         chunkIndex: 0,
-        url: url,
-        method: 'PUT'
+        url,
+        method: "PUT",
       });
     }
-    
+
     return urls;
   }
 
+  /**
+   * Générer des URLs signées pour télécharger un fichier
+   */
   async generatePresignedGetUrls(providerKey, chunkCount) {
     const urls = [];
-    
+
     for (let i = 0; i < chunkCount; i++) {
       const chunkKey = chunkCount > 1 ? `${providerKey}_chunk_${i}` : providerKey;
-      
-      const url = this.s3.getSignedUrl('getObject', {
+
+      const command = new GetObjectCommand({
         Bucket: config.R2_BUCKET_NAME,
         Key: chunkKey,
-        Expires: config.PRESIGNED_URL_EXPIRY,
       });
-      
+
+      const url = await getSignedUrl(s3, command, {
+        expiresIn: config.PRESIGNED_URL_EXPIRY,
+      });
+
       urls.push({
         chunkIndex: i,
-        url: url,
-        method: 'GET'
+        url,
+        method: "GET",
       });
     }
-    
+
     return urls;
   }
 
+  /**
+   * Finaliser un upload multipart
+   */
   async completeMultipartUpload(providerKey, uploadId, parts) {
-    return await this.s3.completeMultipartUpload({
+    return await s3.send(new CompleteMultipartUploadCommand({
       Bucket: config.R2_BUCKET_NAME,
       Key: providerKey,
       UploadId: uploadId,
@@ -92,61 +122,74 @@ class R2Service {
           PartNumber: index + 1,
         })),
       },
-    }).promise();
+    }));
   }
 
+  /**
+   * Télécharger un fichier en streaming
+   */
   async streamDownload(providerKey, onChunk) {
-    const stream = this.s3.getObject({
+    const command = new GetObjectCommand({
       Bucket: config.R2_BUCKET_NAME,
       Key: providerKey,
-    }).createReadStream();
-    
+    });
+
+    const response = await s3.send(command);
+    const bodyStream = response.Body;
+
     return new Promise((resolve, reject) => {
-      stream.on('data', onChunk);
-      stream.on('end', resolve);
-      stream.on('error', reject);
+      bodyStream.on("data", onChunk);
+      bodyStream.on("end", resolve);
+      bodyStream.on("error", reject);
     });
   }
 
+  /**
+   * Copier un fichier depuis une URL externe vers R2
+   */
   async copyFromUrl(sourceUrl, destKey, onProgress) {
-    const https = require('https');
-    const stream = require('stream');
-    
     return new Promise((resolve, reject) => {
       https.get(sourceUrl, (response) => {
         const passThrough = new stream.PassThrough();
-        
+
         response.pipe(passThrough);
-        
-        const upload = this.s3.upload({
+
+        const command = new PutObjectCommand({
           Bucket: config.R2_BUCKET_NAME,
           Key: destKey,
           Body: passThrough,
-          ContentType: 'application/octet-stream',
+          ContentType: "application/octet-stream",
         });
-        
-        upload.on('httpUploadProgress', (progress) => {
-          if (onProgress) onProgress(progress);
-        });
-        
-        upload.send((err, data) => {
-          if (err) reject(err);
-          else resolve(data);
-        });
-      }).on('error', reject);
+
+        s3.send(command)
+          .then(resolve)
+          .catch(reject);
+
+        // ⚠️ SDK v3 n'a pas de `.on("httpUploadProgress")` par défaut
+        // il faut utiliser @aws-sdk/lib-storage si tu veux suivre la progression
+      }).on("error", reject);
     });
   }
 
+  /**
+   * Supprimer un fichier
+   */
   async deleteFile(providerKey) {
-    return await this.s3.deleteObject({
+    return await s3.send(new DeleteObjectCommand({
       Bucket: config.R2_BUCKET_NAME,
       Key: providerKey,
-    }).promise();
+    }));
   }
 }
 
-export const generatePresignedPutUrls = (fileId, chunkCount) => new R2Service().generatePresignedPutUrls(fileId, chunkCount);
-export const generatePresignedGetUrls = (providerKey, chunkCount) => new R2Service().generatePresignedGetUrls(providerKey, chunkCount);
-export const completeMultipartUpload = (providerKey, uploadId, parts) => new R2Service().completeMultipartUpload(providerKey, uploadId, parts);
+// Exports
+export const generatePresignedPutUrls = (fileId, chunkCount) =>
+  new R2Service().generatePresignedPutUrls(fileId, chunkCount);
+
+export const generatePresignedGetUrls = (providerKey, chunkCount) =>
+  new R2Service().generatePresignedGetUrls(providerKey, chunkCount);
+
+export const completeMultipartUpload = (providerKey, uploadId, parts) =>
+  new R2Service().completeMultipartUpload(providerKey, uploadId, parts);
 
 export default new R2Service();
