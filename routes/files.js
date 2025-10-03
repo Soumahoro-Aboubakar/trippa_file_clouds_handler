@@ -22,7 +22,7 @@ router.post("/init-upload", auth, async (req, res) => {
   try {
     console.log("voici le contenu de body : ", req.body);
     const { name, size, mimeType, recipients } = req.body;
-    const uploaderId = req.user.id;
+    const uploaderId = req.userId;
 
     // Validation
     if (!name || !size || !mimeType) {
@@ -91,7 +91,7 @@ router.post("/:id/ack-chunk", auth, async (req, res) => {
     }
 
     // Vérifier autorisation
-    if (metadata.uploaderId !== req.user.id) {
+    if (metadata.uploaderId !== req.userId) {
       return res.status(403).json({ error: "Non autorisé" });
     }
 
@@ -183,8 +183,8 @@ router.get("/:id/download-urls", auth, async (req, res) => {
 
     // Vérifier autorisation (uploader ou recipient)
     const hasAccess =
-      metadata.uploaderId === req.user.id ||
-      metadata.recipients.includes(req.user.id);
+      metadata.uploaderId === req.userId ||
+      metadata.recipients.includes(req.userId);
 
     if (!hasAccess) {
       return res.status(403).json({ error: "Non autorisé" });

@@ -22,7 +22,7 @@ export default function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, config.JWT_SECRET);
     console.log(payload, " voici le log dans la fonction");
-    req.user = payload.userId;
+    req.userId = payload.userId;
     next();
   } catch (err) {
     console.error("token error ", err);
