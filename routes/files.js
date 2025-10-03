@@ -20,6 +20,7 @@ const router = Router();
 // POST /files/init-upload
 router.post("/init-upload", auth, async (req, res) => {
   try {
+    console.log("voici le contenu de body : ", req.body);
     const { name, size, mimeType, recipients } = req.body;
     const uploaderId = req.user.id;
 
@@ -214,7 +215,7 @@ router.get("/:id/download-urls", auth, async (req, res) => {
       metadata.migrationScheduled = true;
       await metadata.save();
 
-    /*  // Déclencher job de migration (simplifié ici)
+      /*  // Déclencher job de migration (simplifié ici)
       setTimeout(() => {
         require("../workers/migrationWorker").migrateB2toR2(id);
       }, 1000); */
