@@ -1,13 +1,13 @@
-import jwt from 'jsonwebtoken';
-import config from '../config/index.js';
+import jwt from "jsonwebtoken";
+import config from "../config/index.js";
 
 export default function auth(req, res, next) {
   let token;
-console.log("Voici le log dans auth token : ", req);
+  console.log("Voici le log dans auth token : ", req);
   // 1️⃣ Cherche dans le header Authorization
-  if (req.headers['authorization']) {
-    const parts = req.headers['authorization'].split(' ');
-    if (parts.length === 2 && parts[0] === 'Bearer') {
+  if (req.headers["authorization"]) {
+    const parts = req.headers["authorization"].split(" ");
+    if (parts.length === 2 && parts[0] === "Bearer") {
       token = parts[1];
     }
   }
@@ -17,14 +17,15 @@ console.log("Voici le log dans auth token : ", req);
     token = req.query.token;
   }
 
-  if (!token) return res.status(401).json({ error: 'Token manquant' });
+  if (!token) return res.status(401).json({ error: "Token manquant" });
 
   try {
-    const payload = jwt.verify(token, config.JWT_SECRET); 
-  //  req.user = payload; 
+    const payload = jwt.verify(token, config.JWT_SECRET);
+    console.log(payload, " voici le log dans la fonction");
+    req.user = payload.userId;
     next();
   } catch (err) {
     console.error("token error ", err);
-    return res.status(401).json({ error: 'Token invalide' });
+    return res.status(401).json({ error: "Token invalide" });
   }
 }
