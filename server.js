@@ -7,6 +7,8 @@ import cluster from 'cluster';
 import { cpus } from 'os';
 import config from './config/index.js';
 import https from "https";
+// Routes
+import filesRoutes from './routes/files.js';
 _config();
 
 const app = express();
@@ -32,8 +34,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-import filesRoutes from './routes/files.js';
+
 
 app.use('/api/files', filesRoutes);
 //app.use('/api/admin', adminRoutes);
