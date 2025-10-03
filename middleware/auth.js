@@ -3,7 +3,7 @@ import config from '../config/index.js';
 
 export default function auth(req, res, next) {
   let token;
-
+console.log("Voici le log dans auth token : ", req);
   // 1️⃣ Cherche dans le header Authorization
   if (req.headers['authorization']) {
     const parts = req.headers['authorization'].split(' ');
@@ -24,6 +24,7 @@ export default function auth(req, res, next) {
   //  req.user = payload; 
     next();
   } catch (err) {
+    console.error("token error ", err);
     return res.status(401).json({ error: 'Token invalide' });
   }
 }
