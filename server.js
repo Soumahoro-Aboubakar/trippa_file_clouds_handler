@@ -52,7 +52,7 @@ connect(config.MONGODB_URI, {
 .then(() => console.log('✅ MongoDB connecté'))
 .catch(err => console.error('❌ Erreur MongoDB:', err));
 
-
+console.log(config , " voici toutes mes clé");
 function autoPing() {
   setInterval(() => {
     https.get(process.env.SELF_URL, (res) => {
