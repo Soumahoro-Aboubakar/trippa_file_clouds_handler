@@ -57,7 +57,7 @@ class R2Service {
           url,
           uploadId,
           partNumber: i + 1,
-          method: "PUT",
+          method: "POST",
         });
       }
     } else {
@@ -73,7 +73,7 @@ class R2Service {
       urls.push({
         chunkIndex: 0,
         url,
-        method: "PUT",
+        method: "POST",
       });
     }
 

@@ -33,7 +33,7 @@ class B2Service {
         chunkIndex: 0,
         url: uploadUrl.data.uploadUrl,
         authToken: uploadUrl.data.authorizationToken,
-        method: "PUT",
+        method: "POST",
       });
     } else {
       // Pour les gros fichiers, utiliser large file API
@@ -56,7 +56,7 @@ class B2Service {
           authToken: partUrl.data.authorizationToken,
           partNumber: i + 1,
           fileId: fileId_b2,
-          method: "PUT",
+          method: "POST",
         });
       }
     }
