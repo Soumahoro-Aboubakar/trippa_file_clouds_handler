@@ -28,7 +28,7 @@ class B2Service {
       const uploadUrl = await this.b2.getUploadUrl({
         bucketId: config.B2_BUCKET_ID,
       });
-
+     console.log(uploadUrl , " voici le log uploadUrl");
       urls.push({
         chunkIndex: 0,
         url: uploadUrl.data.uploadUrl,
@@ -49,7 +49,7 @@ class B2Service {
         const partUrl = await this.b2.getUploadPartUrl({
           fileId: fileId_b2,
         });
-
+       console.log("Voici le log ${partUrl}", partUrl);
         urls.push({
           chunkIndex: i,
           url: partUrl.data.uploadUrl,
