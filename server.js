@@ -11,19 +11,20 @@ _config();
 
 const app = express();
 
-app.use((req, res, next) => {
-  console.log("📌 Méthode :", req.method);
-  console.log("📌 URL :", req.originalUrl);
-  console.log("📌 Headers :", req.headers);
-  console.log("📌 Body :", req.body);
-  next();
-});
-
 // Middlewares
 app.use(cors());
 app.use(json({ limit: '10mb' }));
 app.use(urlencoded({ extended: true, limit: '10mb' }));
 
+
+// Logger APRES que le body ait été parsé
+app.use((req, res, next) => {
+  console.log("📌 Méthode :", req.method);
+  console.log("📌 URL :", req.originalUrl);
+  console.log("📌 Headers :", req.headers);
+  console.log("📌 Body :", req.body); // Ici ça marchera 🚀
+  next();
+});
 // Routes
 import filesRoutes from './routes/files.js';
 
