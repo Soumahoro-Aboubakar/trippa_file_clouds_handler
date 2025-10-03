@@ -132,7 +132,7 @@ router.post("/:id/complete-upload", auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { uploadId, parts } = req.body;
-
+    console.log("Voici le log dans complere body : ", req.body);
     const metadata = await FileMetadataModel.findOne({ fileId: id });
     if (!metadata) {
       return res.status(404).json({ error: "Fichier non trouvé" });
