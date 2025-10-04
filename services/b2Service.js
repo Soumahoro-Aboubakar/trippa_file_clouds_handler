@@ -49,7 +49,7 @@ class B2Service {
         const partUrl = await this.b2.getUploadPartUrl({
           fileId: fileId_b2,
         });
-       console.log("Voici le log ${partUrl}", partUrl);
+       console.log("Voici le log ${partUrl}", partUrl.data);
                console.log("Voici le fileID :::fileId_b2 : ",fileId_b2);
 
         urls.push({
@@ -114,7 +114,7 @@ class B2Service {
 
     return await this.b2.finishLargeFile({
       fileId: fileId,
-      partSha1Array: parts.map((p) => p.sha1),
+      partSha1Array: parts.map((p) => p.etag),
     });
   }
 
