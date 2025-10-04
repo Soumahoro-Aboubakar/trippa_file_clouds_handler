@@ -166,7 +166,7 @@ router.post("/:id/complete-upload", auth, async (req, res) => {
       downloadUrl: `/api/files/${id}/download-urls`,
     });
   } catch (error) {
-  //  console.error("Erreur complete-upload:", error);
+    console.error("Erreur complete-upload:", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
