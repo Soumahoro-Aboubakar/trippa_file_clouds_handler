@@ -114,7 +114,7 @@ class B2Service {
 
     return await this.b2.finishLargeFile({
       fileId: fileId,
-      partSha1Array: parts.map((p) => p.etag),
+      partSha1Array: parts.map((p) => p.sha1),
     });
   }
 
