@@ -49,8 +49,9 @@ class B2Service {
         const partUrl = await this.b2.getUploadPartUrl({
           fileId: fileId_b2,
         });
-        console.log("Voici le fileID :::fileId_b2 : ",fileId_b2);
        console.log("Voici le log ${partUrl}", partUrl);
+               console.log("Voici le fileID :::fileId_b2 : ",fileId_b2);
+
         urls.push({
           chunkIndex: i,
           url: partUrl.data.uploadUrl,
