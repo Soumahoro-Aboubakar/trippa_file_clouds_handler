@@ -16,7 +16,7 @@ import FileMetadataModel from "../models/fileMetadata.js";
 import auth from "../middleware/auth.js";
 
 const router = Router();
-
+/*
 // POST /files/init-upload
 router.post("/init-upload", auth, async (req, res) => {
   try {
@@ -215,10 +215,7 @@ router.get("/:id/download-urls", auth, async (req, res) => {
       metadata.migrationScheduled = true;
       await metadata.save();
 
-      /*  // Déclencher job de migration (simplifié ici)
-      setTimeout(() => {
-        require("../workers/migrationWorker").migrateB2toR2(id);
-      }, 1000); */
+  
     }
 
     // Générer URLs de téléchargement
@@ -247,6 +244,407 @@ router.get("/:id/download-urls", auth, async (req, res) => {
   } catch (e) {
     console.error("Erreur lors du téléchargement de url", e);
     res.status(500).json({ error: "Erreur serveur" });
+  }
+}); */
+///_____________________________Deuxième partie du côde ______________________________
+
+router.post("/init-upload", auth, async (req, res) => {
+  try {
+    const { filename, mimeType, originalSize, recipients } = req.body;
+    const userId = req.userId;
+    const provider = originalSize <= config.THRESHOLD_LARGE_FILE ? "B2" : "R2";
+
+    // Validation
+    if (!filename || !mimeType || !originalSize) {
+      return res.status(400).json({ error: "Paramètres manquants" });
+    }
+
+    // Calcul du nombre de chunks
+    const chunkSize = config.CHUNK_SIZE;
+    const chunkCount = Math.ceil(originalSize / chunkSize);
+
+    // Génération d'un ID unique
+    const fileId = randomUUID();
+    const providerKey = `uploads/${userId}/${fileId}/${filename}`;
+
+    // Génération des URLs signées selon le provider
+    let presignedUrls;
+    let uploadMetadata = {};
+
+    if (provider === "B2") {
+      const rawUrls = await generatePresignedPutUrls(fileId, chunkCount);
+      
+      // Enrichir les URLs avec toutes les métadonnées nécessaires
+      presignedUrls = rawUrls.map(urlData => ({
+        chunkIndex: urlData.chunkIndex,
+        url: urlData.url,
+        authToken: urlData.authToken,
+        partNumber: urlData.partNumber,
+        fileName: filename,
+        fileId: urlData.fileId,
+        method: urlData.method || "POST"
+      }));
+
+      // Métadonnées globales pour l'upload
+      if (chunkCount > 1 && presignedUrls.length > 0) {
+        uploadMetadata.b2FileId = presignedUrls[0].fileId;
+        uploadMetadata.uploadId = presignedUrls[0].fileId;
+        uploadMetadata.fileName = filename;
+        uploadMetadata.isLargeFile = true;
+      } else if (chunkCount === 1) {
+        uploadMetadata.fileName = filename;
+        uploadMetadata.isLargeFile = false;
+      }
+    } else if (provider === "R2") {
+      const rawUrls = await _generatePresignedPutUrls(fileId, chunkCount);
+      
+      // Enrichir les URLs pour R2
+      presignedUrls = rawUrls.map(urlData => ({
+        chunkIndex: urlData.chunkIndex,
+        url: urlData.url,
+        partNumber: urlData.partNumber,
+        uploadId: urlData.uploadId,
+        method: urlData.method || "PUT"
+      }));
+
+      if (chunkCount > 1 && presignedUrls.length > 0) {
+        uploadMetadata.uploadId = presignedUrls[0].uploadId;
+        uploadMetadata.isMultipart = true;
+      }
+    } else {
+      return res.status(400).json({ error: "Provider invalide" });
+    }
+
+    // Création de l'entrée en DB
+    const fileMetadata = new FileMetadataModel({
+      fileId,
+      name: filename,
+      size: originalSize,
+      mimeType,
+      provider,
+      providerKey,
+      chunkSize,
+      chunkCount,
+      uploaderId: userId,
+      recipients: recipients || [],
+      status: "init",
+      uploadedChunks: [],
+      expiresAt: new Date(
+        Date.now() + config.FILE_TTL_DAYS * 24 * 60 * 60 * 1000
+      ),
+    });
+
+    await fileMetadata.save();
+
+    res.json({
+      uploadId: fileId,
+      fileId,
+      provider,
+      providerKey,
+      chunkSize,
+      chunkCount,
+      presignedUrls, // URLs enrichies avec authToken et autres métadonnées
+      uploadMetadata, // Métadonnées globales
+      expiresAt: fileMetadata.expiresAt,
+    });
+  } catch (error) {
+    console.error("Erreur init-upload:", error);
+    res.status(500).json({ error: "Erreur lors de l'initialisation" });
+  }
+});
+
+router.get("/upload/:uploadId/status", auth, async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const userId = req.userId;
+
+    const fileMetadata = await FileMetadataModel.findOne({
+      fileId: uploadId,
+      uploaderId: userId,
+    });
+
+    if (!fileMetadata) {
+      return res.status(404).json({ error: "Upload introuvable" });
+    }
+
+    // Renvoyer la liste des chunks validés
+    const uploadedChunks = fileMetadata.uploadedChunks.map((chunk) => ({
+      index: chunk.index,
+      checksum: chunk.checksum,
+      size: chunk.size,
+      etag: chunk.etag,
+      uploadedAt: chunk.uploadedAt,
+    }));
+
+    res.json({
+      uploadId: fileMetadata.fileId,
+      status: fileMetadata.status,
+      chunkCount: fileMetadata.chunkCount,
+      uploadedChunkCount: uploadedChunks.length,
+      uploadedChunks,
+      isComplete: uploadedChunks.length === fileMetadata.chunkCount,
+    });
+  } catch (error) {
+    console.error("Erreur status:", error);
+    res.status(500).json({ error: "Erreur lors de la récupération du statut" });
+  }
+});
+
+router.post("/upload/:uploadId/chunk/:chunkIndex", auth, async (req, res) => {
+  try {
+    const { uploadId, chunkIndex } = req.params;
+    const { checksum, size, etag } = req.body;
+    const userId = req.userId;
+
+    if (!checksum || !size) {
+      return res.status(400).json({ error: "Checksum et size requis" });
+    }
+
+    const fileMetadata = await FileMetadataModel.findOne({
+      fileId: uploadId,
+      uploaderId: userId,
+    });
+
+    if (!fileMetadata) {
+      return res.status(404).json({ error: "Upload introuvable" });
+    }
+
+    const index = parseInt(chunkIndex);
+
+    // Vérifier si le chunk existe déjà
+    const existingChunk = fileMetadata.uploadedChunks.find(
+      (c) => c.index === index
+    );
+
+    if (existingChunk) {
+      // Idempotence: même checksum = ignorer
+      if (existingChunk.checksum === checksum) {
+        return res.json({
+          message: "Chunk déjà reçu (idempotent)",
+          alreadyExists: true,
+          chunk: existingChunk,
+        });
+      } else {
+        // Checksum différent = conflit
+        return res.status(409).json({
+          error: "Conflit de checksum",
+          expected: existingChunk.checksum,
+          received: checksum,
+        });
+      }
+    }
+
+    // Ajouter le chunk
+    fileMetadata.uploadedChunks.push({
+      index,
+      checksum,
+      size,
+      etag: etag || "",
+      uploadedAt: new Date(),
+    });
+
+    // Mettre à jour le statut
+    if (fileMetadata.status === "init") {
+      fileMetadata.status = "uploading";
+    }
+
+    await fileMetadata.save();
+
+    res.json({
+      message: "Chunk validé",
+      chunk: { index, checksum, size, etag },
+      uploadedChunkCount: fileMetadata.uploadedChunks.length,
+      totalChunks: fileMetadata.chunkCount,
+    });
+  } catch (error) {
+    console.error("Erreur validation chunk:", error);
+    res.status(500).json({ error: "Erreur lors de la validation du chunk" });
+  }
+});
+
+router.post("/complete-upload", auth, async (req, res) => {
+  try {
+    const { uploadId } = req.body;
+    const userId = req.userId;
+    if (!uploadId || !userId) {
+      return res.status(400).json({ error: "uploadId manquant" });
+    }
+    const fileMetadata = await FileMetadataModel.findOne({
+      fileId: uploadId,
+      uploaderId: userId,
+    });
+    if (!fileMetadata) {
+      return res.status(404).json({ error: "Upload introuvable" });
+    }
+
+    // Vérifier que tous les chunks sont présents
+    if (fileMetadata.uploadedChunks.length !== fileMetadata.chunkCount) {
+      return res.status(400).json({
+        error: "Upload incomplet",
+        received: fileMetadata.uploadedChunks.length,
+        expected: fileMetadata.chunkCount,
+      });
+    }
+
+    // Trier les chunks par index
+    const sortedChunks = fileMetadata.uploadedChunks.sort(
+      (a, b) => a.index - b.index
+    );
+
+    // Finaliser selon le provider
+    let completeResult;
+    const provider = fileMetadata.provider;
+
+    if (provider === "B2" && fileMetadata.chunkCount > 1) {
+      const b2FileId = req.body.b2FileId;
+      if (!b2FileId) {
+        return res.status(400).json({ error: "b2FileId manquant" });
+      }
+
+      // B2 attend des SHA1, pas des SHA256
+      // En pratique, B2 calcule lui-même les SHA1 lors de l'upload
+      // On envoie les SHA1 fournis par le client ou on les laisse vides
+      const parts = sortedChunks.map((chunk) => ({
+        sha1: chunk.etag || "none", // B2 tolère 'none' si auto-calculé
+      }));
+
+      completeResult = await completeMultipartUpload(b2FileId, parts);
+    } else if (provider === "R2" && fileMetadata.chunkCount > 1) {
+      const r2UploadId = req.body.uploadId;
+      if (!r2UploadId) {
+        return res.status(400).json({ error: "uploadId R2 manquant" });
+      }
+
+      const parts = sortedChunks.map((chunk) => ({
+        etag: chunk.etag,
+      }));
+
+      completeResult = await _completeMultipartUpload(
+        fileMetadata.providerKey,
+        r2UploadId,
+        parts
+      );
+    }
+
+    // Marquer comme ready
+    fileMetadata.status = "ready";
+    await fileMetadata.save();
+
+    res.json({
+      message: "Upload finalisé",
+      fileId: fileMetadata.fileId,
+      providerKey: fileMetadata.providerKey,
+      status: "ready",
+      completeResult,
+    });
+  } catch (error) {
+    console.error("Erreur complete-upload:", error);
+    res.status(500).json({ error: "Erreur lors de la finalisation" });
+  }
+});
+
+router.delete("/abort-upload/:uploadId", auth, async (req, res) => {
+  try {
+    const { uploadId } = req.params;
+    const userId = req.userId;
+
+    const fileMetadata = await FileMetadataModel.findOne({
+      fileId: uploadId,
+      uploaderId: userId,
+    });
+
+    if (!fileMetadata) {
+      return res.status(404).json({ error: "Upload introuvable" });
+    }
+
+    // Marquer comme aborted (MongoDB TTL s'occupera du nettoyage)
+    fileMetadata.status = "error";
+    fileMetadata.expiresAt = new Date(Date.now() + 10 * 60 * 1000); // Expire dans 1h
+    await fileMetadata.save();
+
+    // TODO: Appeler l'API du provider pour supprimer les parts uploadées
+    // B2: b2_cancel_large_file ou b2_delete_file_version
+    // R2: AbortMultipartUpload
+
+    res.json({
+      message: "Upload annulé",
+      uploadId: fileMetadata.fileId,
+    });
+  } catch (error) {
+    console.error("Erreur abort-upload:", error);
+    res.status(500).json({ error: "Erreur lors de l'annulation" });
+  }
+});
+
+/**
+ * POST /api/files/refresh-url/:uploadId/:chunkIndex
+ * Régénère une URL signée expirée
+ */
+router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
+  try {
+    const { uploadId, chunkIndex } = req.params;
+    const userId = req.userId;
+
+    const fileMetadata = await FileMetadataModel.findOne({
+      fileId: uploadId,
+      uploaderId: userId,
+    });
+
+    if (!fileMetadata) {
+      return res.status(404).json({ error: "Upload introuvable" });
+    }
+
+    const index = parseInt(chunkIndex);
+    if (isNaN(index) || index < 0 || index >= fileMetadata.chunkCount) {
+      return res.status(400).json({ error: "Chunk index invalide" });
+    }
+
+    // Régénérer une seule URL avec toutes les métadonnées
+    let newUrlData;
+    if (fileMetadata.provider === "B2") {
+      const urls = await generatePresignedPutUrls(
+        fileMetadata.fileId,
+        fileMetadata.chunkCount
+      );
+      const rawUrl = urls.find((u) => u.chunkIndex === index);
+      
+      if (rawUrl) {
+        newUrlData = {
+          chunkIndex: index,
+          url: rawUrl.url,
+          authToken: rawUrl.authToken,
+          partNumber: rawUrl.partNumber,
+          fileName: fileMetadata.name,
+          fileId: rawUrl.fileId,
+          method: rawUrl.method || "POST"
+        };
+      }
+    } else if (fileMetadata.provider === "R2") {
+      const urls = await _generatePresignedPutUrls(
+        fileMetadata.fileId,
+        fileMetadata.chunkCount
+      );
+      const rawUrl = urls.find((u) => u.chunkIndex === index);
+      
+      if (rawUrl) {
+        newUrlData = {
+          chunkIndex: index,
+          url: rawUrl.url,
+          partNumber: rawUrl.partNumber,
+          uploadId: rawUrl.uploadId,
+          method: rawUrl.method || "PUT"
+        };
+      }
+    }
+
+    if (!newUrlData) {
+      return res.status(500).json({ error: "Impossible de régénérer l'URL" });
+    }
+
+    res.json(newUrlData);
+  } catch (error) {
+    console.error("Erreur refresh-url:", error);
+    res.status(500).json({ error: "Erreur lors de la régénération de l'URL" });
   }
 });
 
