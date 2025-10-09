@@ -273,16 +273,16 @@ router.post("/init-upload", auth, async (req, res) => {
 
     if (provider === "B2") {
       const rawUrls = await generatePresignedPutUrls(fileId, chunkCount);
-      
+
       // Enrichir les URLs avec toutes les métadonnées nécessaires
-      presignedUrls = rawUrls.map(urlData => ({
+      presignedUrls = rawUrls.map((urlData) => ({
         chunkIndex: urlData.chunkIndex,
         url: urlData.url,
         authToken: urlData.authToken,
         partNumber: urlData.partNumber,
         fileName: filename,
         fileId: urlData.fileId,
-        method: urlData.method || "POST"
+        method: urlData.method || "POST",
       }));
 
       // Métadonnées globales pour l'upload
@@ -297,14 +297,14 @@ router.post("/init-upload", auth, async (req, res) => {
       }
     } else if (provider === "R2") {
       const rawUrls = await _generatePresignedPutUrls(fileId, chunkCount);
-      
+
       // Enrichir les URLs pour R2
-      presignedUrls = rawUrls.map(urlData => ({
+      presignedUrls = rawUrls.map((urlData) => ({
         chunkIndex: urlData.chunkIndex,
         url: urlData.url,
         partNumber: urlData.partNumber,
         uploadId: urlData.uploadId,
-        method: urlData.method || "PUT"
+        method: urlData.method || "PUT",
       }));
 
       if (chunkCount > 1 && presignedUrls.length > 0) {
@@ -347,7 +347,12 @@ router.post("/init-upload", auth, async (req, res) => {
       uploadMetadata, // Métadonnées globales
       expiresAt: fileMetadata.expiresAt,
     });
-    console.log("Voici le fileId créer : ", fileId , " et pour les autre user : ", userId);
+    console.log(
+      "Voici le fileId créer : ",
+      fileId,
+      " et pour les autre user : ",
+      userId
+    );
   } catch (error) {
     console.error("Erreur init-upload:", error);
     res.status(500).json({ error: "Erreur lors de l'initialisation" });
@@ -467,7 +472,12 @@ router.post("/complete-upload", auth, async (req, res) => {
   try {
     const { uploadId } = req.body;
     const userId = req.userId;
-    console.log(" Voici les information uploadId : ", uploadId , " et les autres information  userId : ", userId);
+    console.log(
+      " Voici les information uploadId : ",
+      uploadId,
+      " et les autres information  userId : ",
+      userId
+    );
     if (!uploadId || !userId) {
       return res.status(400).json({ error: "uploadId manquant" });
     }
@@ -510,6 +520,12 @@ router.post("/complete-upload", auth, async (req, res) => {
       const parts = sortedChunks.map((chunk) => ({
         sha1: chunk.etag || "none", // B2 tolère 'none' si auto-calculé
       }));
+      console.log(
+        "Voici la parts /******** ",
+        parts,
+        " et le fileId à l'appui : ",
+        b2FileId
+      );
 
       completeResult = await completeMultipartUpload(b2FileId, parts);
     } else if (provider === "R2" && fileMetadata.chunkCount > 1) {
@@ -521,7 +537,12 @@ router.post("/complete-upload", auth, async (req, res) => {
       const parts = sortedChunks.map((chunk) => ({
         etag: chunk.etag,
       }));
-     console.log("Voici la parts /******** ", parts , " et le fileId à l'appui : ", fileMetadata.fileId);
+      console.log(
+        "Voici la parts /******** ",
+        parts,
+        " et le fileId à l'appui : ",
+        fileMetadata.fileId
+      );
       completeResult = await _completeMultipartUpload(
         fileMetadata.fileId,
         r2UploadId,
@@ -532,13 +553,16 @@ router.post("/complete-upload", auth, async (req, res) => {
     // Marquer comme ready
     fileMetadata.status = "ready";
     await fileMetadata.save();
-
+    console.log(
+      "Voici la response du serveur completeResult:  ",
+      completeResult
+    );
     res.json({
       message: "Upload finalisé",
       fileId: fileMetadata.fileId,
       providerKey: fileMetadata.providerKey,
       status: "ready",
-      completeResult,
+    //  completeResult,
     });
   } catch (error) {
     console.error("Erreur complete-upload:", error);
@@ -610,7 +634,7 @@ router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
         fileMetadata.chunkCount
       );
       const rawUrl = urls.find((u) => u.chunkIndex === index);
-      
+
       if (rawUrl) {
         newUrlData = {
           chunkIndex: index,
@@ -619,7 +643,7 @@ router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
           partNumber: rawUrl.partNumber,
           fileName: fileMetadata.name,
           fileId: rawUrl.fileId,
-          method: rawUrl.method || "POST"
+          method: rawUrl.method || "POST",
         };
       }
     } else if (fileMetadata.provider === "R2") {
@@ -628,14 +652,14 @@ router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
         fileMetadata.chunkCount
       );
       const rawUrl = urls.find((u) => u.chunkIndex === index);
-      
+
       if (rawUrl) {
         newUrlData = {
           chunkIndex: index,
           url: rawUrl.url,
           partNumber: rawUrl.partNumber,
           uploadId: rawUrl.uploadId,
-          method: rawUrl.method || "PUT"
+          method: rawUrl.method || "PUT",
         };
       }
     }
@@ -650,8 +674,6 @@ router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la régénération de l'URL" });
   }
 });
-
-
 
 // GET /files/:id/download-urls
 router.get("/:id/download-urls", auth, async (req, res) => {
@@ -696,8 +718,6 @@ router.get("/:id/download-urls", auth, async (req, res) => {
       // Programmer migration en arrière-plan
       metadata.migrationScheduled = true;
       await metadata.save();
-
-  
     }
 
     // Générer URLs de téléchargement
