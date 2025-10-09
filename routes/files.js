@@ -264,7 +264,7 @@ router.post("/init-upload", auth, async (req, res) => {
     const chunkCount = Math.ceil(originalSize / chunkSize);
 
     // Génération d'un ID unique
-    const fileId = randomUUID();
+    const fileId = randomUUID(); //pour l'accès  aux informations en utilisant mon service de base de donné
     const providerKey = `uploads/${userId}/${fileId}/${filename}`;
 
     // Génération des URLs signées selon le provider
@@ -288,7 +288,7 @@ router.post("/init-upload", auth, async (req, res) => {
       // Métadonnées globales pour l'upload
       if (chunkCount > 1 && presignedUrls.length > 0) {
         uploadMetadata.b2FileId = presignedUrls[0].fileId;
-        uploadMetadata.uploadId = presignedUrls[0].fileId;
+        uploadMetadata.uploadId = presignedUrls[0].fileId; //uploadId générer par les clouds
         uploadMetadata.fileName = filename;
         uploadMetadata.isLargeFile = true;
       } else if (chunkCount === 1) {
@@ -347,6 +347,7 @@ router.post("/init-upload", auth, async (req, res) => {
       uploadMetadata, // Métadonnées globales
       expiresAt: fileMetadata.expiresAt,
     });
+    console.log("Voici le fileId créer : ", fileId , " et pour les autre user : ", userId);
   } catch (error) {
     console.error("Erreur init-upload:", error);
     res.status(500).json({ error: "Erreur lors de l'initialisation" });
@@ -466,9 +467,11 @@ router.post("/complete-upload", auth, async (req, res) => {
   try {
     const { uploadId } = req.body;
     const userId = req.userId;
+    console.log(" Voici les information uploadId : ", uploadId , " et les autres information  userId : ", userId);
     if (!uploadId || !userId) {
       return res.status(400).json({ error: "uploadId manquant" });
     }
+
     const fileMetadata = await FileMetadataModel.findOne({
       fileId: uploadId,
       uploaderId: userId,
