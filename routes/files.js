@@ -513,7 +513,7 @@ router.post("/complete-upload", auth, async (req, res) => {
 
       completeResult = await completeMultipartUpload(b2FileId, parts);
     } else if (provider === "R2" && fileMetadata.chunkCount > 1) {
-      const r2UploadId = req.body.uploadId;
+      const r2UploadId = req.body.cloudUploadId;
       if (!r2UploadId) {
         return res.status(400).json({ error: "uploadId R2 manquant" });
       }
@@ -521,9 +521,9 @@ router.post("/complete-upload", auth, async (req, res) => {
       const parts = sortedChunks.map((chunk) => ({
         etag: chunk.etag,
       }));
-
+     console.log("Voici la parts /******** ", parts , " et le fileId à l'appui : ", fileMetadata.fileId);
       completeResult = await _completeMultipartUpload(
-        fileMetadata.providerKey,
+        fileMetadata.fileId,
         r2UploadId,
         parts
       );

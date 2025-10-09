@@ -111,10 +111,10 @@ class R2Service {
   /**
    * Finaliser un upload multipart
    */
-  async completeMultipartUpload(providerKey, uploadId, parts) {
+  async completeMultipartUpload(fileId, uploadId, parts) {
     return await s3.send(new CompleteMultipartUploadCommand({
       Bucket: config.R2_BUCKET_NAME,
-      Key: providerKey,
+      Key: fileId,
       UploadId: uploadId,
       MultipartUpload: {
         Parts: parts.map((part, index) => ({
