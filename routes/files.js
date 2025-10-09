@@ -648,4 +648,81 @@ router.post("/refresh-url/:uploadId/:chunkIndex", auth, async (req, res) => {
   }
 });
 
+
+
+// GET /files/:id/download-urls
+router.get("/:id/download-urls", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const metadata = await FileMetadataModel.findOne({ fileId: id });
+    if (!metadata) {
+      return res.status(404).json({ error: "Fichier non trouvé" });
+    }
+
+    // Vérifier autorisation (uploader ou recipient)
+    const hasAccess =
+      metadata.uploaderId === req.userId ||
+      metadata.recipients.includes(req.userId);
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: "Non autorisé" });
+    }
+
+    if (metadata.status !== "ready") {
+      return res
+        .status(400)
+        .json({ error: "Fichier non prêt", status: metadata.status });
+    }
+
+    // Incrémenter le compteur de téléchargements (atomique)
+    await FileMetadataModel.updateOne(
+      { fileId: id },
+      {
+        $inc: { downloadCount: 1 },
+        $set: { lastDownloadAt: new Date() },
+      }
+    );
+
+    // Vérifier si migration nécessaire
+    if (
+      metadata.provider === "B2" &&
+      metadata.downloadCount + 1 >= config.POPULARITY_MIGRATION_THRESHOLD &&
+      !metadata.migrationScheduled
+    ) {
+      // Programmer migration en arrière-plan
+      metadata.migrationScheduled = true;
+      await metadata.save();
+
+  
+    }
+
+    // Générer URLs de téléchargement
+    let presignedUrls;
+    if (metadata.provider === "B2") {
+      presignedUrls = await generatePresignedGetUrls(
+        metadata.fileId,
+        metadata.chunkCount
+      );
+    } else {
+      presignedUrls = await _generatePresignedGetUrls(
+        metadata.fileId,
+        metadata.chunkCount
+      );
+    }
+
+    res.json({
+      fileId: id,
+      name: metadata.name,
+      size: metadata.size,
+      mimeType: metadata.mimeType,
+      chunkCount: metadata.chunkCount,
+      chunkSize,
+      presignedUrls,
+    });
+  } catch (e) {
+    console.error("Erreur lors du téléchargement de url", e);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
 export default router;

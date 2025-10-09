@@ -83,15 +83,15 @@ class R2Service {
   /**
    * Générer des URLs signées pour télécharger un fichier
    */
-  async generatePresignedGetUrls(providerKey, chunkCount) {
+  async generatePresignedGetUrls(fileId, chunkCount) {
     const urls = [];
 
     for (let i = 0; i < chunkCount; i++) {
-      const chunkKey = chunkCount > 1 ? `${providerKey}_chunk_${i}` : providerKey;
+     // const chunkKey = chunkCount > 1 ? `${providerKey}_chunk_${i}` : providerKey;
 
       const command = new GetObjectCommand({
         Bucket: config.R2_BUCKET_NAME,
-        Key: chunkKey,
+        Key: fileId,
       });
 
       const url = await getSignedUrl(s3, command, {

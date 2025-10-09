@@ -5,7 +5,7 @@ const config = {
   CHUNK_SIZE: parseInt(process.env.CHUNK_SIZE) || 4 * 1024 * 1024, // 4MB
   
   // Sécurité
-  PRESIGNED_URL_EXPIRY: parseInt(process.env.PRESIGNED_URL_EXPIRY) || 15 * 60, // 15 minutes
+  PRESIGNED_URL_EXPIRY: parseInt(process.env.PRESIGNED_URL_EXPIRY) || 604800, // 7 jours
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-key',
   
   // Migration et nettoyage
