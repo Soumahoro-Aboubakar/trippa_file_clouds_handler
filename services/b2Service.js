@@ -18,53 +18,25 @@ class B2Service {
     }
   }
 
-  async generatePresignedPutUrls(fileId, chunkCount) {
-    await this.authorize();
+async generatePresignedPutUrls(fileId, chunkCount) {
+  await this.authorize();
+  const urls = [];
 
-    const urls = [];
-
-    // Pour les petits fichiers ou peu de chunks, utiliser upload simple
-    if (chunkCount <= 1) {
+    for (let i = 0; i < chunkCount; i++) {
       const uploadUrl = await this.b2.getUploadUrl({
         bucketId: config.B2_BUCKET_ID,
       });
-     console.log(uploadUrl , " voici le log uploadUrl");
+      console.log(uploadUrl, " voici le log uploadUrl");
       urls.push({
-        chunkIndex: 0,
+        chunkIndex: i, 
         url: uploadUrl.data.uploadUrl,
         authToken: uploadUrl.data.authorizationToken,
         method: "POST",
       });
-    } else {
-      // Pour les gros fichiers, utiliser large file API
-      const startLargeFile = await this.b2.startLargeFile({
-        bucketId: config.B2_BUCKET_ID,
-        fileName: fileId,
-        contentType: "application/octet-stream",
-      });
-
-      const fileId_b2 = startLargeFile.data.fileId;
-
-      for (let i = 0; i < chunkCount; i++) {
-        const partUrl = await this.b2.getUploadPartUrl({
-          fileId: fileId_b2,
-        });
-       console.log("Voici le log ${partUrl}", partUrl.data);
-               console.log("Voici le fileID :::fileId_b2 : ",fileId_b2);
-
-        urls.push({
-          chunkIndex: i,
-          url: partUrl.data.uploadUrl,
-          authToken: partUrl.data.authorizationToken,
-          partNumber: i + 1,
-          fileId: fileId_b2,
-          method: "POST",
-        });
-      }
-    }
-
-    return urls;
   }
+  
+  return urls;
+}
 
   async generatePresignedGetUrls(providerKey, chunkCount) {
     /*  await this.authorize();

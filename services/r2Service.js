@@ -27,58 +27,26 @@ class R2Service {
   /**
    * Générer des URLs signées pour uploader des fichiers (PUT ou multipart)
    */
-  async generatePresignedPutUrls(fileId, chunkCount) {
-    const urls = [];
-
-    if (chunkCount > 1) {
-      // Démarrer un upload multipart
-      const multipart = await s3.send(new CreateMultipartUploadCommand({
-        Bucket: config.R2_BUCKET_NAME,
-        Key: fileId,
-        ContentType: "application/octet-stream",
-      }));
-
-      const uploadId = multipart.UploadId;
-
-      for (let i = 0; i < chunkCount; i++) {
-        const command = new UploadPartCommand({
-          Bucket: config.R2_BUCKET_NAME,
-          Key: fileId,
-          PartNumber: i + 1,
-          UploadId: uploadId,
-        });
-
-        const url = await getSignedUrl(s3, command, {
-          expiresIn: config.PRESIGNED_URL_EXPIRY,
-        });
-
-        urls.push({
-          chunkIndex: i,
-          url,
-          uploadId,
-          partNumber: i + 1,
-          method: "POST",
-        });
-      }
-    } else {
-      const command = new PutObjectCommand({
-        Bucket: config.R2_BUCKET_NAME,
-        Key: fileId,
-      });
-
-      const url = await getSignedUrl(s3, command, {
-        expiresIn: config.PRESIGNED_URL_EXPIRY,
-      });
-
-      urls.push({
-        chunkIndex: 0,
-        url,
-        method: "POST",
-      });
-    }
-
-    return urls;
+async generatePresignedPutUrls(fileId, chunkCount) {
+  const urls = [];
+  
+  for (let i = 0; i < chunkCount; i++) {
+    const command = new PutObjectCommand({
+      Bucket: config.R2_BUCKET_NAME,
+      Key: fileId,
+    });
+    const url = await getSignedUrl(s3, command, {
+      expiresIn: config.PRESIGNED_URL_EXPIRY,
+    });
+    urls.push({
+      chunkIndex: i,
+      url,
+      method: "PUT",
+    });
   }
+  
+  return urls;
+}
 
   /**
    * Générer des URLs signées pour télécharger un fichier
@@ -111,6 +79,7 @@ class R2Service {
   /**
    * Finaliser un upload multipart
    */
+  
   async completeMultipartUpload(fileId, uploadId, parts) {
     return await s3.send(new CompleteMultipartUploadCommand({
       Bucket: config.R2_BUCKET_NAME,
